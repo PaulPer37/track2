@@ -1,39 +1,24 @@
-Simulador de Resiliencia Costera: Gran Guayaquil
+## ⚙️ Configuración de Google Earth Engine (GEE)
 
-Plataforma web desarrollada con Django y Google Earth Engine para simular el riesgo de inundaciones y visualizar la protección natural que ofrecen los ecosistemas de manglar frente a escenarios de lluvias extremas y mareas altas.
+Para que la simulación satelital funcione, el sistema necesita conectarse a la nube de Google Earth Engine. Debes seguir estos pasos antes de levantar el servidor:
 
-Desarrollado por
-Paúl Perdomo - Ciencias de la Computación, ESPOL
+### 1. Requisitos Previos
+Debes tener una cuenta de Google registrada en [Google Earth Engine](https://earthengine.google.com/) y un Proyecto de Google Cloud con la API de Earth Engine habilitada.
 
-Requisitos Previos
+### 2. Variables de Entorno
+En la raíz del proyecto (al mismo nivel que el archivo `manage.py`), crea un archivo llamado exactamente `.env`. Dentro de este archivo, coloca el ID de tu proyecto de Google Cloud de la siguiente manera:
 
-    Python 3.12 o superior
+\`\`\`env
+EE_PROJECT_ID=el-id-de-tu-proyecto-aqui
+\`\`\`
 
-    Cuenta activa en Google Earth Engine con Project ID
+### 3. Autenticación Local
+Antes de correr la aplicación por primera vez, debes autorizar a tu computadora para que consuma los recursos de GEE. Abre tu terminal con el entorno virtual activado y ejecuta:
 
-Instalación y Ejecución
+\`\`\`bash
+earthengine authenticate
+\`\`\`
 
-    Clonar el repositorio:
-    git clone URL_DE_TU_REPOSITORIO
-    cd hackaton
+Esto abrirá una pestaña en tu navegador web. Inicia sesión con tu cuenta de Google, selecciona tu proyecto, genera el token de acceso y pégalo de vuelta en la terminal si te lo solicita. 
 
-    Crear y activar el entorno virtual:
-    python3 -m venv env
-    source env/bin/activate
-
-    Instalar dependencias:
-    pip install -r requirements.txt
-
-    Configurar variables de entorno:
-    Crea un archivo .env en la raíz del proyecto y añade el ID de proyecto de Google Earth Engine:
-    EE_PROJECT_ID=tu-id-de-proyecto-aqui
-
-    Añadir los Datasets (Archivos Vectoriales):
-    Descarga los shapefiles de cobertura de manglar y colócalos manteniendo esta estructura de directorios:
-    datos/2022/MAN_2022.shp (junto con sus archivos .dbf, .shx y .prj asociados).
-
-    Ejecutar el servidor local:
-    python manage.py migrate
-    python manage.py runserver
-
-El proyecto estará disponible localmente en http://127.0.0.1:8000/
+Una vez autenticado, ya puedes iniciar el servidor con `python manage.py runserver` y el modelo de Machine Learning funcionará correctamente.
