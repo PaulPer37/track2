@@ -6,24 +6,29 @@
     <title>Resilience Simulator - ESPOL Hackathon</title>
     <style>
         body { font-family: sans-serif; margin: 0; padding: 0; display: flex; height: 100vh; background-color: #f4f4f9;}
-        #sidebar { width: 350px; background-color: #2c3e50; color: white; padding: 25px; box-sizing: border-box; overflow-y: auto; display: flex; flex-direction: column;}
+        #sidebar { width: 360px; background-color: #2c3e50; color: white; padding: 25px; box-sizing: border-box; overflow-y: auto; display: flex; flex-direction: column;}
         
         #sidebar h2 { font-size: 1.8rem; margin-top: 0; border-bottom: 1px solid #34495e; padding-bottom: 15px;}
-        .form-group { margin-bottom: 25px; }
+        .form-group { margin-bottom: 20px; }
         
-        #sidebar label { display: block; margin-bottom: 8px; font-size: 1.2rem; color: #ecf0f1; }
-        #sidebar input { width: 100%; padding: 15px; border: none; border-radius: 4px; box-sizing: border-box; background-color: #34495e; color: white; font-size: 1.4rem;}
-        #sidebar button { width: 100%; padding: 15px; background-color: #27ae60; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; margin-top: 15px; transition: 0.3s; font-size: 1.4rem;}
-        #sidebar button:hover { background-color: #2ecc71; }
+        #sidebar label { display: block; margin-bottom: 8px; font-size: 1.1rem; color: #ecf0f1; }
+        #sidebar input { width: 100%; padding: 12px; border: none; border-radius: 4px; box-sizing: border-box; background-color: #34495e; color: white; font-size: 1.2rem;}
         
-        /* Phase 3 Counter Styles */
+        /* Botones */
+        .btn-principal { width: 100%; padding: 15px; background-color: #27ae60; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; margin-top: 5px; transition: 0.3s; font-size: 1.2rem;}
+        .btn-principal:hover { background-color: #2ecc71; }
+        
+        .btn-secundario { width: 100%; padding: 12px; background-color: #2980b9; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; margin-top: 15px; transition: 0.3s; font-size: 1rem;}
+        .btn-secundario:hover { background-color: #3498db; }
+        
+        /* KPI Styles */
         .kpi-section { margin-top: 30px; border-top: 1px solid #34495e; padding-top: 20px; }
         .kpi-card { background: #34495e; padding: 15px; border-radius: 8px; margin-bottom: 15px; border-left: 5px solid #e74c3c; }
         .kpi-card.green { border-left-color: #2ecc71; }
         .kpi-label { font-size: 0.9rem; color: #bdc3c7; text-transform: uppercase; display: block; }
         .kpi-value { font-size: 1.7rem; font-weight: bold; color: #fff; margin-top: 5px; display: block; }
 
-        .info-api { font-size: 1.1rem; color: #bdc3c7; margin-top: auto; text-align: center; font-style: italic; line-height: 1.4; padding-top: 20px;}
+        .info-api { font-size: 1rem; color: #bdc3c7; margin-top: auto; text-align: center; font-style: italic; line-height: 1.4; padding-top: 20px;}
         
         #mapa-container { flex-grow: 1; position: relative; }
         iframe { width: 100%; height: 100%; border: none; }
@@ -36,29 +41,38 @@
             {% csrf_token %}
             
             <div class="form-group">
-                <label>Rainfall Prediction (mm/day)</label>
+                <label>Rainfall (mm/day)</label>
                 <input type="number" name="lluvia" value="{{ lluvia_actual }}" min="0" max="300" step="0.1">
             </div>
 
-            <button type="submit">Calculate Impact</button>
+            <div class="form-group">
+                <label>INOCAR Tide Level (m)</label>
+                <input type="number" name="marea" value="{{ marea_actual }}" min="0" max="6" step="0.1">
+            </div>
+
+            <button type="submit" class="btn-principal">Simulate Scenario</button>
+            
+            <button type="submit" name="pronostico_manana" value="1" class="btn-secundario">
+                ☁️ Get Tomorrow's Forecast
+            </button>
         </form>
 
         <div class="kpi-section">
             <div class="kpi-card">
                 <span class="kpi-label">Population at Risk</span>
                 <span class="kpi-value">{{ poblacion_riesgo }}</span>
-                <small>Inhabitants</small>
+                <small>Inhabitants affected</small>
             </div>
 
             <div class="kpi-card green">
                 <span class="kpi-label">Mangrove Coverage</span>
                 <span class="kpi-value">{{ hectareas_manglar }} ha</span>
-                <small>Area detected via Landsat</small>
+                <small>Natural barrier area</small>
             </div>
         </div>
 
         <div class="info-api">
-            Data Integration: WorldPop, NASA Landsat, and Open-Meteo.
+            Data Integration: WorldPop, NASA Landsat, Open-Meteo & INOCAR predictions.
         </div>
     </div>
     
