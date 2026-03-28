@@ -15,7 +15,6 @@ def obtener_clima_manana():
     try:
         respuesta = requests.get(url, timeout=5)
         datos = respuesta.json()
-        # Nosotros agregamos para obtener el float del día de mañana correctamente
         lluvia_manana = datos['daily']['precipitation_sum']
         return float(lluvia_manana)
     except:
@@ -26,7 +25,6 @@ def index(request):
     RUTA_CREDS = os.path.join(settings.BASE_DIR, 'google-creds.json')
 
     try:
-        # Nosotros incluimos la Cuenta de Servicio manteniendo tu código intacto
         if os.path.exists(RUTA_CREDS):
             creds = ee.ServiceAccountCredentials('', RUTA_CREDS)
             ee.Initialize(credentials=creds, project=PROYECTO_EE)
@@ -63,7 +61,6 @@ def index(request):
         }
     ).add_to(m)
 
-    # Nosotros conservamos tu lógica topográfica estable que enmascara bien el océano
     dem = ee.Image("USGS/SRTMGL1_003")
     tierra_firme = dem.gt(0)
     dem_terrestre = dem.updateMask(tierra_firme)
@@ -100,8 +97,11 @@ def index(request):
         area_2022 = gdf_2022_metric.geometry.area.sum() / 10000
         hectareas_perdidas = round(area_2018 - area_2022, 2)
 
+        # Optimización de geometría para evitar que el servidor de Render colapse
+        gdf_2022_ligero = gdf_2022.simplify(tolerance=0.001)
+
         folium.GeoJson(
-            gdf_2022,
+            gdf_2022_ligero,
             name='Manglares 2022',
             style_function=lambda feature: {
                 'fillColor': '#2ecc71', 
