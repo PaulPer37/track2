@@ -1,24 +1,24 @@
-## ⚙️ Configuración de Google Earth Engine (GEE)
+## ⚙️ Google Earth Engine (GEE) Setup
 
-Para que la simulación satelital funcione, el sistema necesita conectarse a la nube de Google Earth Engine. Debes seguir estos pasos antes de levantar el servidor:
+For the satellite simulation to work, the system needs to connect to the Google Earth Engine cloud. You must follow these steps before starting the server:
 
-### 1. Requisitos Previos
-Debes tener una cuenta de Google registrada en [Google Earth Engine](https://earthengine.google.com/) y un Proyecto de Google Cloud con la API de Earth Engine habilitada.
+### 1. Prerequisites
+You must have a Google account registered on [Google Earth Engine](https://earthengine.google.com/) and a Google Cloud Project with the Earth Engine API enabled.
 
-### 2. Variables de Entorno
-En la raíz del proyecto (al mismo nivel que el archivo `manage.py`), crea un archivo llamado exactamente `.env`. Dentro de este archivo, coloca el ID de tu proyecto de Google Cloud de la siguiente manera:
+### 2. Environment Variables
+In the project root (at the same level as the `manage.py` file), create a file named exactly `.env`. Inside this file, enter your Google Cloud project ID as follows:
 
 \`\`\`env
-EE_PROJECT_ID=el-id-de-tu-proyecto-aqui
+EE_PROJECT_ID=your-project-id-here
 \`\`\`
 
-### 3. Autenticación Local
-Antes de correr la aplicación por primera vez, debes autorizar a tu computadora para que consuma los recursos de GEE. Abre tu terminal con el entorno virtual activado y ejecuta:
+### 3. Local Authentication
+Before running the application for the first time, you must authorize your computer to access GEE resources. Open your terminal with the virtual environment activated and run:
 
 \`\`\`bash
 earthengine authenticate
 \`\`\`
 
-Esto abrirá una pestaña en tu navegador web. Inicia sesión con tu cuenta de Google, selecciona tu proyecto, genera el token de acceso y pégalo de vuelta en la terminal si te lo solicita. 
+This will open a tab in your web browser. Sign in with your Google account, select your project, generate the access token, and paste it back into the terminal if prompted. 
 
-Una vez autenticado, ya puedes iniciar el servidor con `python manage.py runserver` y el modelo de Machine Learning funcionará correctamente.
+Once authenticated, you can start the server with `python manage.py runserver`, and the machine learning model will work correctly
