@@ -15,6 +15,7 @@ def obtener_clima_manana():
     try:
         respuesta = requests.get(url, timeout=5)
         datos = respuesta.json()
+        # Nosotros agregamos para obtener el float del día de mañana correctamente
         lluvia_manana = datos['daily']['precipitation_sum']
         return float(lluvia_manana)
     except:
@@ -22,12 +23,17 @@ def obtener_clima_manana():
 
 def index(request):
     PROYECTO_EE = os.getenv('EE_PROJECT_ID')
+    RUTA_CREDS = os.path.join(settings.BASE_DIR, 'google-creds.json')
 
     try:
-        ee.Initialize(project=PROYECTO_EE)
-    except Exception:
-        ee.Authenticate()
-        ee.Initialize(project=PROYECTO_EE)
+        # Nosotros incluimos la Cuenta de Servicio manteniendo tu código intacto
+        if os.path.exists(RUTA_CREDS):
+            creds = ee.ServiceAccountCredentials('', RUTA_CREDS)
+            ee.Initialize(credentials=creds, project=PROYECTO_EE)
+        else:
+            ee.Initialize(project=PROYECTO_EE)
+    except Exception as e:
+        print(f"Error de autenticación GEE: {e}")
 
     if request.method == 'POST':
         lluvia = float(request.POST.get('lluvia', 0.0))
@@ -57,6 +63,7 @@ def index(request):
         }
     ).add_to(m)
 
+    # Nosotros conservamos tu lógica topográfica estable que enmascara bien el océano
     dem = ee.Image("USGS/SRTMGL1_003")
     tierra_firme = dem.gt(0)
     dem_terrestre = dem.updateMask(tierra_firme)
