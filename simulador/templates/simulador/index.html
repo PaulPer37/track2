@@ -3,49 +3,53 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Simulador de Manglares - Guayaquil</title>
+    <title>Simulador de Resiliencia - Hackathon ESPOL</title>
     <style>
         body { font-family: sans-serif; margin: 0; padding: 0; display: flex; height: 100vh; background-color: #f4f4f9;}
-        /* Panel Lateral (Controles) */
         #sidebar { width: 320px; background-color: #2c3e50; color: white; padding: 20px; box-sizing: border-box; overflow-y: auto; display: flex; flex-direction: column;}
         #sidebar h2 { font-size: 1.2rem; margin-top: 0; border-bottom: 1px solid #34495e; padding-bottom: 10px;}
         .form-group { margin-bottom: 15px; }
-        label { display: block; margin-bottom: 5px; font-size: 0.9rem; color: #ecf0f1; }
-        input, select { width: 100%; padding: 8px; border: none; border-radius: 4px; box-sizing: border-box; background-color: #34495e; color: white;}
-        button { width: 100%; padding: 12px; background-color: #27ae60; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; margin-top: 15px; transition: 0.3s;}
-        button:hover { background-color: #2ecc71; }
-        /* Área del Mapa */
+        
+        /* Limitamos el diseño oscuro solo al panel lateral */
+        #sidebar label { display: block; margin-bottom: 5px; font-size: 0.9rem; color: #ecf0f1; }
+        #sidebar input { width: 100%; padding: 12px; border: none; border-radius: 4px; box-sizing: border-box; background-color: #34495e; color: white; font-size: 1.1rem;}
+        #sidebar button { width: 100%; padding: 12px; background-color: #27ae60; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; margin-top: 15px; transition: 0.3s; font-size: 1rem;}
+        #sidebar button:hover { background-color: #2ecc71; }
+        
+        .impact-box { margin-top: 30px; padding: 15px; background-color: #e74c3c; border-radius: 5px; text-align: center; }
+        .impact-box h3 { margin: 0; font-size: 1rem; color: white; }
+        .impact-box p { margin: 10px 0 0 0; font-size: 0.9rem; color: #fdf2e9; }
+        .impact-box strong { font-size: 1.8rem; display: block; margin-top: 5px; }
+        .info-api { font-size: 0.8rem; color: #bdc3c7; margin-top: 10px; text-align: center; font-style: italic;}
+        
         #mapa-container { flex-grow: 1; position: relative; }
         iframe { width: 100%; height: 100%; border: none; }
     </style>
 </head>
 <body>
     <div id="sidebar">
-        <h2>Parámetros de Simulación</h2>
+        <h2>Simulador de Riesgo</h2>
         <form method="POST" action="">
             {% csrf_token %}
             
             <div class="form-group">
-                <label>Año de Cobertura de Manglar</label>
-                <select name="anio">
-                    <option value="2018" {% if anio_actual == '2018' %}selected{% endif %}>2018</option>
-                    <option value="2020" {% if anio_actual == '2020' %}selected{% endif %}>2020</option>
-                    <option value="2022" {% if anio_actual == '2022' %}selected{% endif %}>2022</option>
-                </select>
+                <label>Predicción de Lluvia (mm/día)</label>
+                <input type="number" name="lluvia" value="{{ lluvia_actual }}" min="0" max="300" step="0.1">
             </div>
 
-            <div class="form-group">
-                <label>Precipitación Extrema (mm)</label>
-                <input type="number" name="lluvia" value="{{ lluvia_actual }}" min="0" max="200">
-            </div>
-
-            <div class="form-group">
-                <label>Marea del Río Guayas (metros)</label>
-                <input type="number" name="marea" value="{{ marea_actual }}" min="0" max="8" step="0.1">
-            </div>
-
-            <button type="submit">Ejecutar Simulación</button>
+            <button type="submit">Calcular Impacto</button>
         </form>
+        <div class="info-api">
+            Al cargar, obtenemos la predicción real para mañana mediante Open-Meteo API.
+        </div>
+
+        <div class="impact-box">
+            <h3>Degradación Ambiental</h3>
+            <p>
+                Pérdida de barrera de manglar calculada en tiempo real:
+                <strong>{{ hectareas_perdidas }} ha</strong>
+            </p>
+        </div>
     </div>
     
     <div id="mapa-container">

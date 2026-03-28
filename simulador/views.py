@@ -1,12 +1,24 @@
 import os
 import ee
 import folium
+from folium import plugins
 import geopandas as gpd
+import requests
 from django.shortcuts import render
 from django.conf import settings
 from dotenv import load_dotenv
 
 load_dotenv()
+
+def obtener_clima_manana():
+    url = "https://api.open-meteo.com/v1/forecast?latitude=-2.1962&longitude=-79.8862&daily=precipitation_sum&timezone=America%2FGuayaquil&forecast_days=2"
+    try:
+        respuesta = requests.get(url, timeout=5)
+        datos = respuesta.json()
+        lluvia_manana = datos['daily']['precipitation_sum']
+        return float(lluvia_manana)
+    except:
+        return 0.0
 
 def index(request):
     PROYECTO_EE = os.getenv('EE_PROJECT_ID')
@@ -17,62 +29,88 @@ def index(request):
         ee.Authenticate()
         ee.Initialize(project=PROYECTO_EE)
 
-    # 1. Leer los datos enviados por el usuario en la barra lateral
-    anio = request.POST.get('anio', '2018')
-    lluvia = float(request.POST.get('lluvia', 70.0))
-    marea = float(request.POST.get('marea', 5.0))
+    if request.method == 'POST':
+        lluvia = float(request.POST.get('lluvia', 0.0))
+    else:
+        lluvia = obtener_clima_manana()
 
-    # 2. SOLUCIÓN AL ERROR: Usamos 'cartodbpositron' como mapa base
-    m = folium.Map(location=[-2.15, -79.9], zoom_start=11, tiles='cartodbpositron')
+    m = folium.Map(
+        location=[-2.18, -79.90], 
+        zoom_start=11, 
+        tiles='CartoDB voyager',
+        min_zoom=9,
+        max_bounds=True
+    )
+    
+    m.fit_bounds([[-3.2, -80.6], [-1.0, -79.0]])
 
-    # Topografía (DEM)
-    dem = ee.Image("USGS/SRTMGL1_003")
-    
-    # 3. Lógica de Simulación de Inundación
-    # Calculamos el umbral crítico de agua y creamos una máscara booleana
-    nivel_agua = marea + (lluvia / 50.0)
-    zonas_inundadas = dem.lte(nivel_agua)
-    
-    # Ocultamos los píxeles secos para dejar solo el agua visible
-    inundacion_transparente = zonas_inundadas.updateMask(zonas_inundadas)
-    
-    vis_params_agua = {'min': 0, 'max': 1, 'palette': ['blue']}
-    map_id_agua = ee.Image(inundacion_transparente).getMapId(vis_params_agua)
-    
-    folium.TileLayer(
-        tiles=map_id_agua['tile_fetcher'].url_format,
-        attr='GEE', overlay=True, name=f'Inundación ({lluvia}mm, {marea}m)'
+    plugins.Geocoder(
+        position='topright',
+        add_marker=True,
+        provider='nominatim',
+        provider_options={
+            'geocodingQueryParams': {
+                'countrycodes': 'ec',
+                'viewbox': '-81.0,-1.0,-79.0,-3.3',
+                'bounded': 1
+            }
+        }
     ).add_to(m)
 
-    # 4. Integrar tus Datasets Locales (Los shapefiles)
-    # Buscamos en la carpeta 'datos' que creamos anteriormente
-    ruta_shp = os.path.join(settings.BASE_DIR, 'datos', anio, f'MAN_{anio}.shp')
+    dem = ee.Image("USGS/SRTMGL1_003")
+    tierra_firme = dem.gt(0)
+    dem_terrestre = dem.updateMask(tierra_firme)
+
+    umbral_inundacion = lluvia / 20.0 
     
-    if os.path.exists(ruta_shp):
-        manglares_gdf = gpd.read_file(ruta_shp)
+    if lluvia > 0:
+        zonas_riesgo = dem_terrestre.lte(umbral_inundacion)
+        riesgo_mask = zonas_riesgo.updateMask(zonas_riesgo.eq(1))
         
-        # Agregamos los polígonos al mapa con estilo verde transparente
+        map_id_riesgo = ee.Image(riesgo_mask).getMapId({'min': 0, 'max': 1, 'palette': ['#0074D9']})
+        
+        folium.TileLayer(
+            tiles=map_id_riesgo['tile_fetcher'].url_format, 
+            attr='GEE', 
+            overlay=True, 
+            name=f'Inundación ({lluvia}mm)',
+            opacity=0.35
+        ).add_to(m)
+
+    ruta_2018 = os.path.join(settings.BASE_DIR, 'datos', '2018', 'MAN_2018.shp')
+    ruta_2022 = os.path.join(settings.BASE_DIR, 'datos', '2022', 'MAN_2022.shp')
+    
+    hectareas_perdidas = 0
+    
+    if os.path.exists(ruta_2018) and os.path.exists(ruta_2022):
+        gdf_2018 = gpd.read_file(ruta_2018)
+        gdf_2022 = gpd.read_file(ruta_2022)
+        
+        gdf_2018_metric = gdf_2018.to_crs(epsg=32717)
+        gdf_2022_metric = gdf_2022.to_crs(epsg=32717)
+        
+        area_2018 = gdf_2018_metric.geometry.area.sum() / 10000
+        area_2022 = gdf_2022_metric.geometry.area.sum() / 10000
+        hectareas_perdidas = round(area_2018 - area_2022, 2)
+
         folium.GeoJson(
-            manglares_gdf,
-            name=f'Manglares {anio}',
+            gdf_2022,
+            name='Manglares 2022',
             style_function=lambda feature: {
-                'fillColor': '#27ae60',
-                'color': '#145a32',
-                'weight': 1,
-                'fillOpacity': 0.6,
+                'fillColor': '#2ecc71', 
+                'color': '#0e3b22', 
+                'weight': 0.5, 
+                'fillOpacity': 0.25
             }
         ).add_to(m)
 
-    # Agregamos el control de capas
     folium.LayerControl().add_to(m)
     mapa_html = m.get_root().render()
 
-    # Enviamos todo de vuelta al Frontend
     contexto = {
         'mapa': mapa_html,
-        'anio_actual': anio,
         'lluvia_actual': lluvia,
-        'marea_actual': marea
+        'hectareas_perdidas': hectareas_perdidas
     }
     
     return render(request, 'simulador/index.html', contexto)
