@@ -22,3 +22,5 @@ earthengine authenticate
 This will open a tab in your web browser. Sign in with your Google account, select your project, generate the access token, and paste it back into the terminal if prompted. 
 
 Once authenticated, you can start the server with `python manage.py runserver`, and the machine learning model will work correctly
+in this link you can use our app:
+https://map-mangrove-floop.onrender.com/
