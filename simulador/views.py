@@ -46,28 +46,31 @@ def index(request):
     poblacion_conteo = 0
     hectareas_manglar = 0
     
-    # Mapa base con max_zoom ampliado
-    # 0. MAPA BASE (Tomamos control manual para forzar el estiramiento del zoom)
-    m = folium.Map(location=[-2.18, -79.90], zoom_start=11, max_zoom=22, tiles=None)
-
-    folium.TileLayer(
-        tiles='https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
-        attr='&copy; OpenStreetMap &copy; CARTO',
-        name='Mapa Base (Calles)',
+    # Mapa base configurado para zoom profundo
+    m = folium.Map(
+        location=[-2.18, -79.90], 
+        zoom_start=11, 
+        min_zoom=9,
         max_zoom=22,
-        max_native_zoom=18
-    ).add_to(m)
+        tiles='CartoDB voyager',
+        max_bounds=True
+    )
+    
+    m.fit_bounds([[-3.2, -80.6], [-1.0, -79.0]])
 
     try:
-        # 1. Base y Features para la IA
         guayaquil = ee.FeatureCollection("FAO/GAUL/2015/level2").filter(ee.Filter.eq('ADM2_NAME', 'Guayaquil'))
         dem = ee.Image("USGS/SRTMGL1_003")
         slope = ee.Terrain.slope(dem)
         tierra_firme = dem.gt(0)
         dem_terrestre = dem.updateMask(tierra_firme)
         manglares = ee.ImageCollection("LANDSAT/MANGROVE_FORESTS").mosaic().unmask(0)
+        
+        # EL ARREGLO: Distancia euclidiana directa pero con un radio máximo de 1500m 
+        # Esto es rápido de procesar y nunca confunde metros con píxeles.
         agua_global = ee.Image("JRC/GSW1_4/GlobalSurfaceWater")
-        dist_agua = agua_global.select('max_extent').eq(1).distance(ee.Kernel.euclidean(5000, 'meters'))
+        agua_mask = agua_global.select('max_extent').eq(1)
+        dist_agua = agua_mask.distance(ee.Kernel.euclidean(1500, 'meters'))
 
         imagen_clasificar = ee.Image.cat([
             dem_terrestre.rename('elevation'), 
@@ -76,13 +79,11 @@ def index(request):
             dist_agua.rename('dist_water')
         ])
 
-        # 2. CARGAR MODELOS DE IA DESDE LOS ASSETS DE GOOGLE
         mascara_lluvia_ia = ee.Image(0)
         mascara_marea_ia = ee.Image(0)
         modelos_listos = False
         
         try:
-            # Apuntando a la versión 2 de los modelos
             asset_lluvia = f"projects/{PROYECTO_EE}/assets/rf_modelo_lluvia"
             asset_marea = f"projects/{PROYECTO_EE}/assets/rf_modelo_marea"
             
@@ -92,31 +93,27 @@ def index(request):
             prediccion_lluvia = imagen_clasificar.classify(rf_lluvia)
             prediccion_marea = imagen_clasificar.classify(rf_marea)
             
-            # Combinamos la vulnerabilidad de la IA con la intensidad del Slider
             umbral_lluvia = lluvia / 15.0
-            mascara_lluvia_ia = prediccion_lluvia.eq(1).And(dem_terrestre.lte(umbral_lluvia)).clip(guayaquil)
+            mascara_lluvia_ia = prediccion_lluvia.eq(1).And(dem_terrestre.lte(umbral_lluvia))
             
             umbral_marea = marea / 1.5
-            mascara_marea_ia = prediccion_marea.eq(1).And(dem_terrestre.lte(umbral_marea)).clip(guayaquil)
+            # OBLIGAMOS a la IA a respetar la regla de estar a menos de 1500m del agua
+            mascara_marea_ia = prediccion_marea.eq(1).And(dem_terrestre.lte(umbral_marea)).And(dist_agua.lt(1500))
             
             modelos_listos = True
         except Exception as e:
-            print(f"Los modelos IA aún se están entrenando o no se encontraron: {e}")
-            # Fallback a la heurística antigua si el modelo no está listo
+            print(f"Usando heurística veloz: {e}")
             umbral_lluvia = lluvia / 20.0
-            mascara_lluvia_ia = dem_terrestre.lte(umbral_lluvia).clip(guayaquil)
+            mascara_lluvia_ia = dem_terrestre.lte(umbral_lluvia)
             
-            dist_manglar = manglares.distance(ee.Kernel.euclidean(5000, 'meters'))
-            agua_estuario = agua_global.select('max_extent').eq(1).And(dist_manglar.lt(5000))
-            dist_agua_estuario = agua_estuario.distance(ee.Kernel.euclidean(1500, 'meters'))
             umbral_marea = marea / 1.5
-            mascara_marea_ia = dem_terrestre.lte(umbral_marea).And(dist_agua_estuario.lt(1500)).clip(guayaquil)
+            # OBLIGAMOS al modelo físico a respetar la regla de los 1500m
+            mascara_marea_ia = dem_terrestre.lte(umbral_marea).And(dist_agua.lt(1500))
 
-        # 3. Solución Z-Fighting
+        # Solución Z-Fighting (Le quitamos a la lluvia lo que ya es marea)
         mascara_lluvia_pura = mascara_lluvia_ia.And(mascara_marea_ia.Not())
 
-        # 4. Módulo Población
-        riesgo_total = mascara_lluvia_ia.Or(mascara_marea_ia)
+        riesgo_total = mascara_lluvia_pura.Or(mascara_marea_ia)
         wsf = ee.Image("DLR/WSF/WSF2015/v1")
         worldpop = ee.ImageCollection("WorldPop/GP/100m/pop").mosaic()
         poblacion_riesgo = worldpop.updateMask(wsf.gt(0)).updateMask(riesgo_total.eq(1))
@@ -131,7 +128,6 @@ def index(request):
             if len(valores_pob) > 0 and valores_pob is not None:
                 poblacion_conteo = int(valores_pob.pop(0))
 
-        # 5. Módulo Manglares
         area_manglar = manglares.gt(0).multiply(ee.Image.pixelArea())
         stats_manglar = area_manglar.reduceRegion(
             reducer=ee.Reducer.sum(), geometry=guayaquil.geometry(),
@@ -145,34 +141,31 @@ def index(request):
 
         # --- RENDERIZADO VISUAL EN FOLIUM ---
         manglares_vis = manglares.updateMask(manglares.gt(0))
-        map_id_m = manglares_vis.getMapId({'palette': ['#2ecc71']})
+        map_id_m = manglares_vis.getMapId({'min': 0, 'max': 1, 'palette': ['#2ecc71']})
         
         folium.TileLayer(
             tiles=map_id_m['tile_fetcher'].url_format, 
-            attr='NASA', overlay=True, name='Manglares', opacity=0.4, 
-            max_zoom=22, max_native_zoom=18
+            attr='NASA', overlay=True, name='Manglares', opacity=0.4
         ).add_to(m)
         
         prefijo_nombre = "IA -" if modelos_listos else "Físico -"
 
         if lluvia > 0:
             riesgo_vis_lluvia = mascara_lluvia_pura.updateMask(mascara_lluvia_pura.eq(1))
-            map_id_ll = riesgo_vis_lluvia.getMapId({'palette': ['#3498db']})
+            map_id_ll = riesgo_vis_lluvia.getMapId({'min': 0, 'max': 1, 'palette': ['#3498db']})
             
             folium.TileLayer(
                 tiles=map_id_ll['tile_fetcher'].url_format, 
-                attr='GEE ML', overlay=True, name=f'{prefijo_nombre} Lluvia ({lluvia}mm)', opacity=0.6, control=True, 
-                max_zoom=22, max_native_zoom=18
+                attr='GEE', overlay=True, name=f'{prefijo_nombre} Lluvia ({lluvia}mm)', opacity=0.6, control=True
             ).add_to(m)
 
         if marea > 0:
             riesgo_vis_marea = mascara_marea_ia.updateMask(mascara_marea_ia.eq(1))
-            map_id_ma = riesgo_vis_marea.getMapId({'palette': ['#9b59b6']}) 
+            map_id_ma = riesgo_vis_marea.getMapId({'min': 0, 'max': 1, 'palette': ['#9b59b6']}) 
             
             folium.TileLayer(
                 tiles=map_id_ma['tile_fetcher'].url_format, 
-                attr='GEE ML', overlay=True, name=f'{prefijo_nombre} Marea ({marea}m)', opacity=0.6, control=True, 
-                max_zoom=22, max_native_zoom=18
+                attr='GEE', overlay=True, name=f'{prefijo_nombre} Marea ({marea}m)', opacity=0.6, control=True
             ).add_to(m)
 
     except Exception as e:
