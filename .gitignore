@@ -1,0 +1,23 @@
+# Entorno virtual
+env/
+venv/
+
+# Variables de entorno y secretos
+.env
+
+# Archivos de Python
+__pycache__/
+*.pyc
+
+# Base de datos local de Django
+db.sqlite3
+
+# Archivos pesados de datasets (Se deben descargar localmente)
+datos/
+*.shp
+*.shx
+*.dbf
+*.prj
+
+# Archivos del sistema operativo
+.DS_Store
