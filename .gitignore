@@ -13,11 +13,6 @@ __pycache__/
 db.sqlite3
 
 # Archivos pesados de datasets (Se deben descargar localmente)
-datos/
-*.shp
-*.shx
-*.dbf
-*.prj
-
+google-creds.json
 # Archivos del sistema operativo
 .DS_Store

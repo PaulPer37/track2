@@ -2,7 +2,6 @@ import os
 import ee
 import folium
 from folium import plugins
-import geopandas as gpd
 import requests
 from django.shortcuts import render
 from django.conf import settings
@@ -22,12 +21,16 @@ def obtener_clima_manana():
 
 def index(request):
     PROYECTO_EE = os.getenv('EE_PROJECT_ID')
+    RUTA_CREDS = os.path.join(settings.BASE_DIR, 'google-creds.json')
 
     try:
-        ee.Initialize(project=PROYECTO_EE)
-    except Exception:
-        ee.Authenticate()
-        ee.Initialize(project=PROYECTO_EE)
+        if os.path.exists(RUTA_CREDS):
+            creds = ee.ServiceAccountCredentials('', RUTA_CREDS)
+            ee.Initialize(credentials=creds, project=PROYECTO_EE)
+        else:
+            ee.Initialize(project=PROYECTO_EE)
+    except Exception as e:
+        print(f"Error de autenticación GEE: {e}")
 
     if request.method == 'POST':
         lluvia = float(request.POST.get('lluvia', 0.0))
@@ -57,6 +60,24 @@ def index(request):
         }
     ).add_to(m)
 
+    # 1. OPTIMIZACIÓN EXTREMA: Delegamos los manglares a Google Earth Engine
+    # Ya no leemos archivos .shp locales, Google renderiza los tiles instantáneamente
+    try:
+        manglares_nasa = ee.ImageCollection("LANDSAT/MANGROVE_FORESTS").mosaic()
+        manglares_mask = manglares_nasa.updateMask(manglares_nasa.gt(0))
+        map_id_manglar = ee.Image(manglares_mask).getMapId({'min': 0, 'max': 1, 'palette': ['#2ecc71']})
+        
+        folium.TileLayer(
+            tiles=map_id_manglar['tile_fetcher'].url_format, 
+            attr='GEE NASA', 
+            overlay=True, 
+            name='Barrera Natural (Manglares)',
+            opacity=0.35
+        ).add_to(m)
+    except Exception as e:
+        print(f"Error cargando manglares GEE: {e}")
+
+    # 2. Lógica de Riesgo de Inundación
     dem = ee.Image("USGS/SRTMGL1_003")
     tierra_firme = dem.gt(0)
     dem_terrestre = dem.updateMask(tierra_firme)
@@ -73,44 +94,19 @@ def index(request):
             tiles=map_id_riesgo['tile_fetcher'].url_format, 
             attr='GEE', 
             overlay=True, 
-            name=f'Inundación ({lluvia}mm)',
+            name=f'Riesgo Inundación ({lluvia}mm)',
             opacity=0.35
-        ).add_to(m)
-
-    ruta_2018 = os.path.join(settings.BASE_DIR, 'datos', '2018', 'MAN_2018.shp')
-    ruta_2022 = os.path.join(settings.BASE_DIR, 'datos', '2022', 'MAN_2022.shp')
-    
-    hectareas_perdidas = 0
-    
-    if os.path.exists(ruta_2018) and os.path.exists(ruta_2022):
-        gdf_2018 = gpd.read_file(ruta_2018)
-        gdf_2022 = gpd.read_file(ruta_2022)
-        
-        gdf_2018_metric = gdf_2018.to_crs(epsg=32717)
-        gdf_2022_metric = gdf_2022.to_crs(epsg=32717)
-        
-        area_2018 = gdf_2018_metric.geometry.area.sum() / 10000
-        area_2022 = gdf_2022_metric.geometry.area.sum() / 10000
-        hectareas_perdidas = round(area_2018 - area_2022, 2)
-
-        folium.GeoJson(
-            gdf_2022,
-            name='Manglares 2022',
-            style_function=lambda feature: {
-                'fillColor': '#2ecc71', 
-                'color': '#0e3b22', 
-                'weight': 0.5, 
-                'fillOpacity': 0.25
-            }
         ).add_to(m)
 
     folium.LayerControl().add_to(m)
     mapa_html = m.get_root().render()
 
+    # El cálculo de pérdida de hectáreas es estático (2018-2022). 
+    # Lo inyectamos directo para no consumir RAM del servidor.
     contexto = {
         'mapa': mapa_html,
         'lluvia_actual': lluvia,
-        'hectareas_perdidas': hectareas_perdidas
+        'hectareas_perdidas': 227.52
     }
     
     return render(request, 'simulador/index.html', contexto)

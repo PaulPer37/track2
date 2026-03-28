@@ -6,7 +6,13 @@ load_dotenv()
 
 def pre_entrenar():
     PROYECTO_EE = os.getenv('EE_PROJECT_ID')
-    ee.Initialize(project=PROYECTO_EE)
+    RUTA_CREDS = 'google-creds.json'
+
+    if os.path.exists(RUTA_CREDS):
+        creds = ee.ServiceAccountCredentials('', RUTA_CREDS)
+        ee.Initialize(credentials=creds, project=PROYECTO_EE)
+    else:
+        ee.Initialize(project=PROYECTO_EE)
 
     print("Iniciando la recolección de variables predictoras en GEE...")
     dem = ee.Image("USGS/SRTMGL1_003")
@@ -46,7 +52,7 @@ def pre_entrenar():
     
     tarea.start()
     print("Tarea enviada a los servidores de Google.")
-    print("El modelo se está guardando. Este proceso ocurre en la nube y toma un par de minutos.")
+    print("El modelo se está guardando de forma permanente.")
 
 if __name__ == "__main__":
     pre_entrenar()
